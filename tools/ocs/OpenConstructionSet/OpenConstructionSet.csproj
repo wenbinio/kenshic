@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9</TargetFramework>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Configurations>Debug;Release;Docs</Configurations>
+    <Platforms>AnyCPU</Platforms>
+    <DisableDefaultDocumentation>true</DisableDefaultDocumentation>
+    <Version>4.1.0.1</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Docs' ">
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <DocumentationFile>$(SolutionDir)/docs/api/OpenConstructionSet.xml</DocumentationFile>
+    <DisableDefaultDocumentation>false</DisableDefaultDocumentation>
+    <DefaultDocumentationFileNameMode>Md5</DefaultDocumentationFileNameMode>
+    <DefaultDocumentationRemoveFileExtensionFromLinks>false</DefaultDocumentationRemoveFileExtensionFromLinks>
+    <DefaultDocumentationGeneratedPages>Types, Members</DefaultDocumentationGeneratedPages>
+  </PropertyGroup>
+
+  <!--Nuget package properties-->
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Authors>lmaydev</Authors>
+    <Description>
+      The OCS is a modding SDK for Kenshi (https://lofigames.com/) written in C#
+
+      It provides services for dealing with the various folders and data files used by the game.
+      As well as providing a managed context for loading multiple mods for editing (Similar to FCS)
+    </Description>
+    <PackageProjectUrl>https://github.com/lmaydev/OpenConstructionSet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/lmaydev/OpenConstructionSet</RepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="GameFinder.StoreHandlers.Steam" Version="4.2.0" />
+    <PackageReference Include="GameFinder.StoreHandlers.GOG" Version="4.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(Configuration)' == 'Release' ">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(Configuration)' == 'Docs' ">
+    <PackageReference Include="DefaultDocumentation" Version="0.7.9">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="..\.editorconfig" />
+
+    <None Include="$(SolutionDir)README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

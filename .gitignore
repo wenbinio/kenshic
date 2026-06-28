@@ -1,0 +1,27 @@
+# Build output
+build/
+out/
+dist/
+**/bin/
+**/obj/
+**/CMakeFiles/
+CMakeCache.txt
+*.user
+
+# Binaries / artifacts
+*.dll
+*.exe
+*.pdb
+*.lib
+*.obj
+*.ilk
+*.exp
+
+# IDE
+.vs/
+.idea/
+*.vcxproj.user
+
+# OS
+.DS_Store
+Thumbs.db
