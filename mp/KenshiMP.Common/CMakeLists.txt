@@ -1,7 +1,6 @@
 add_library(KenshiMP.Common STATIC
     src/protocol.cpp
     src/serialization.cpp
-    src/compression.cpp
     src/config.cpp
 )
 

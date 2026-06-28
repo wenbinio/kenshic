@@ -16,7 +16,6 @@
 #include "ui/overlay.h"
 #include "ui/native_hud.h"
 #include "sync/sync_orchestrator.h"
-#include "sync/sync_facilitator.h"
 #include "sync/pipeline_orchestrator.h"
 #include "sys/task_orchestrator.h"
 #include "sys/frame_data.h"

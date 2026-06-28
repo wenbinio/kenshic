@@ -7,13 +7,11 @@
 #include "hooks/movement_hooks.h"
 #include "hooks/combat_hooks.h"
 #include "hooks/world_hooks.h"
-#include "hooks/save_hooks.h"
 #include "hooks/time_hooks.h"
 #include "hooks/game_tick_hooks.h"
 #include "hooks/inventory_hooks.h"
 #include "hooks/squad_hooks.h"
 #include "hooks/faction_hooks.h"
-#include "hooks/building_hooks.h"
 #include "hooks/ai_hooks.h"
 #include "hooks/resource_hooks.h"
 #include "hooks/squad_spawn_hooks.h"
@@ -543,8 +541,6 @@ bool Core::Initialize() {
         m_entityRegistry, m_playerController, m_interpolation,
         m_spawnManager, m_client, m_orchestrator);
     m_useSyncOrchestrator = m_config.useSyncOrchestrator;
-    SyncFacilitator::Get().Bind(m_syncOrchestrator.get(), &m_entityRegistry,
-                                 &m_interpolation, &m_spawnManager);
     AssetFacilitator::Get().Bind(&m_loadingOrch);
     m_pipelineOrch.Initialize(m_localPlayerId, m_entityRegistry, m_spawnManager,
                                m_loadingOrch, m_client, m_nativeHud);
@@ -655,7 +651,6 @@ void Core::Shutdown() {
     // freed by Kenshi, causing AVs in setVisible/setCaption calls during teardown.
     m_pipelineOrch.Shutdown();
     AssetFacilitator::Get().Unbind();
-    SyncFacilitator::Get().Unbind();
     if (m_syncOrchestrator) {
         m_syncOrchestrator->Shutdown();
     }
@@ -1425,7 +1420,6 @@ void Core::OnGameLoaded() {
     OutputDebugStringA("KMP: === Core::OnGameLoaded() START ===\n");
 
     // ── Clear loading guard ──
-    building_hooks::SetLoading(false);
     inventory_hooks::SetLoading(false);
     squad_hooks::SetLoading(false);
     faction_hooks::SetLoading(false);

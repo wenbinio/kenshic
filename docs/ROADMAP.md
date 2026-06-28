@@ -71,9 +71,38 @@ divergence. Needs server-authoritative AI/RNG ownership. See spec §4 #6.
 Local player skips server-authoritative reconciliation → desync under packet loss.
 "Acceptable" for basic play; required for polish.
 
-## 6. 🧹 Architectural debt (blocks reasoning about everything above)
-Three spawn mechanisms, two position pipelines, 4–7 overlapping "orchestrators", an SDK
-abstraction initialized but never queried. Consolidate as we touch each subsystem.
+## 6. 🧹 Architectural debt — dead-code consolidation underway
+Per the upstream 18-agent reorg verdict (`mp/docs/audit-2026-06-03-gap-report.json` →
+`orchestratorVerdict` / `rewriteOrDelete`): three spawn mechanisms, two position
+pipelines, 4–7 overlapping "orchestrators", and several pure-facade / never-installed
+modules. Strategy: delete **provably-dead** code first (inspection-verifiable, zero
+runtime-behavior change), defer anything that merges live paths until there's a game to
+test against.
+
+**✅ Done — deleted (verified zero live references in this `main`; ~1,050 LOC):**
+- `sync/zone_interest.cpp` — `ZoneInterestManager`, never instantiated (dead clone of `ZoneEngine`).
+- `sync/ownership.cpp` — `OwnershipManager` facade; already superseded by `EntityResolver`.
+- `sync/sync_facilitator.{h,cpp}` — write-only facade (only `Bind`/`Unbind` called, never read); removed those 2 calls.
+- `hooks/building_hooks.{cpp,h}` — `Install()` never called; removed the one stray `SetLoading` call. (Building sync deferred post-MVP.)
+- `hooks/save_hooks.{cpp,h}` — disabled no-op; removed its lone `#include`.
+- `kmp/compression.{h,cpp}` (Common) — `DeltaPosition`/`PackedVelocity`/float16 defined but instantiated nowhere.
+- All CMake entries, includes, and call-sites cleaned; dangling-reference sweep clean.
+
+**⏭️ Deferred — alters live behavior, needs the game to verify safely:**
+- **Spawn mechanisms** — `squad_spawn_hooks` (actively installed) + `spawn_manager`
+  dead queue paths (`ProcessSpawnQueue` "DO-NOT-USE", `ProcessSpawnQueueFromHook` no
+  caller) + entity-hook NPC-hijack. Audit wants one `SpawnService` (FactoryCreate +
+  mod templates). Merging spawners changes how remote chars appear — test first.
+- **Legacy in-core sync path** — `PollLocalPositions`/`ApplyRemotePositionsDirect`/
+  `SendCachedPackets` in `core.cpp` duplicate `SyncOrchestrator` and "cause
+  double-sends"; deleting needs confirmation the orchestrator fully covers them.
+- **`asset_facilitator`** — still load-bearing (`CanSpawn()` gates spawning); becomes a
+  thin forward to `LoadingOrchestrator` but touches the spawn gate.
+- **Renames** (`SyncOrchestrator`→`SyncPipeline`, `PipelineOrchestrator`→diagnostics) —
+  pure churn; do last, alongside the spawn merge.
+- **`WorldAccessor` vs `GameWorldAccessor`** dedup; **`movement_hooks`** never-installed
+  bodies; dead enums `S2C_ZoneData`/`C2S_EntityAck`; server `combat_resolver`
+  `HandleAttackIntent` (dead until attack-intent is sent — see §2).
 
 ---
 
