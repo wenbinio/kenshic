@@ -2365,6 +2365,10 @@ void Core::OnGameTick(float deltaTime) {
         // Process deferred combat events (death/KO queued from hook context)
         combat_hooks::ProcessDeferredEvents();
 
+        // Continuous damage sync: sample owned characters' limb health and send
+        // deltas (ApplyDamage can't be hooked). Internally throttled to 4 Hz.
+        combat_hooks::PollOwnedHealth();
+
         // Process deferred character discoveries (new chars found by animation hook)
         char_tracker_hooks::ProcessDeferredDiscovery();
 
@@ -2446,6 +2450,10 @@ void Core::OnGameTick(float deltaTime) {
 
         // Process deferred combat events (death/KO queued from hook context)
         combat_hooks::ProcessDeferredEvents();
+
+        // Continuous damage sync: sample owned characters' limb health and send
+        // deltas (ApplyDamage can't be hooked). Internally throttled to 4 Hz.
+        combat_hooks::PollOwnedHealth();
 
         // Process deferred character discoveries (new chars found by animation hook)
         char_tracker_hooks::ProcessDeferredDiscovery();

@@ -9,6 +9,12 @@
 #include <atomic>
 #include <mutex>
 #include <vector>
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <iterator>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace kmp::combat_hooks {
 
@@ -256,6 +262,91 @@ void ProcessDeferredEvents() {
 
             // Piggyback limb health snapshot after KO event
             SendLimbHealthUpdate(evt.entityId, gameObj);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CONTINUOUS HEALTH SYNC — called from Core::OnGameTick (safe context)
+//
+//  ApplyDamage (0x7A33A0) cannot be hooked (mov rax,rsp prologue, fires hundreds
+//  of times per combat tick → deterministic crash). So damage is replicated by
+//  sampling, not interception: every HEALTH_POLL_INTERVAL_MS we read the 7 limb
+//  values of each locally-owned character and, if any changed beyond
+//  HEALTH_EPSILON since we last sent, push a C2S_LimbHealth update. The server
+//  re-broadcasts it (S2C_LimbHealth) and remote clients write the values back
+//  into their copy of the character — closing the "damage bars don't move"
+//  gap without ever touching ApplyDamage.
+//
+//  We poll ONLY entities we own (registry.GetPlayerEntities(myId)), so each
+//  character has exactly one authoritative reporter and there is no feedback
+//  loop with incoming S2C_LimbHealth (which only writes REMOTE characters).
+// ═══════════════════════════════════════════════════════════════════════════
+
+static constexpr int64_t HEALTH_POLL_INTERVAL_MS = 250;  // 4 Hz
+static constexpr float   HEALTH_EPSILON          = 0.5f;  // ignore sub-0.5 jitter
+static constexpr int     MAX_POLLED_PER_TICK     = 64;    // bound per-tick cost
+
+// Last values we actually transmitted, per owned entity, for delta detection.
+static std::unordered_map<EntityID, std::array<float, 7>> s_lastSentHealth;
+
+static int64_t NowMs() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+void PollOwnedHealth() {
+    auto& core = Core::Get();
+    if (!core.IsConnected()) {
+        if (!s_lastSentHealth.empty()) s_lastSentHealth.clear();
+        return;
+    }
+
+    static int64_t s_lastPollMs = 0;
+    int64_t now = NowMs();
+    if (now - s_lastPollMs < HEALTH_POLL_INTERVAL_MS) return;
+    s_lastPollMs = now;
+
+    PlayerID myId = core.GetLocalPlayerId();
+    if (myId == 0) return; // not yet assigned a player id
+
+    auto& registry = core.GetEntityRegistry();
+    std::vector<EntityID> owned = registry.GetPlayerEntities(myId);
+
+    std::unordered_set<EntityID> live(owned.begin(), owned.end());
+
+    int processed = 0;
+    for (EntityID netId : owned) {
+        if (processed >= MAX_POLLED_PER_TICK) break;
+
+        void* gameObj = registry.GetGameObject(netId);
+        if (!gameObj) continue;
+
+        float cur[7];
+        if (!SEH_ReadAllLimbHealth(gameObj, cur)) continue; // read failed — skip
+        processed++;
+
+        auto it = s_lastSentHealth.find(netId);
+        bool changed = (it == s_lastSentHealth.end());
+        if (!changed) {
+            for (int i = 0; i < 7; i++) {
+                if (std::abs(cur[i] - it->second[i]) > HEALTH_EPSILON) { changed = true; break; }
+            }
+        }
+        if (!changed) continue;
+
+        SendLimbHealthUpdate(netId, gameObj);
+
+        std::array<float, 7> snap;
+        for (int i = 0; i < 7; i++) snap[i] = cur[i];
+        s_lastSentHealth[netId] = snap;
+    }
+
+    // Drop cache entries for characters we no longer own (died, transferred,
+    // unregistered) so the map can't grow without bound.
+    if (s_lastSentHealth.size() > live.size()) {
+        for (auto it = s_lastSentHealth.begin(); it != s_lastSentHealth.end(); ) {
+            it = live.count(it->first) ? std::next(it) : s_lastSentHealth.erase(it);
         }
     }
 }

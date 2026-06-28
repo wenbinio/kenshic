@@ -10,8 +10,10 @@ Ordered by **dependency**: lower items don't matter until the blocker above them
 ## 0. Foundation (salvageable, per upstream audit)
 - ✅ ENet transport, protocol, packet streaming (4,900+ pkts reliable)
 - ✅ Entity registry, interpolation, MovRaxRsp hook infra, MyGUI UI
-- ⚠️ Dedicated server compiles *mostly* — `HandlePlayerReady` references a
-  non-existent struct → **build break to fix first** (pure code, no game needed).
+- ✅ `HandlePlayerReady` build break — **already resolved in this `main`**
+  (`server.cpp:2419`): every symbol it references (`ConnectedPlayer.isReady`,
+  `S2C_AllPlayersReady`, `KMP_CHANNEL_RELIABLE_ORDERED`) resolves. The 06-03 audit
+  predates the 06-04 fix pass. No action needed.
 
 ## 1. 🚨 THE BLOCKER — sync loop deadlocked at "game loaded" gate
 **Symptom:** remote characters never appear. **Root cause (not networking):**
@@ -19,17 +21,43 @@ Ordered by **dependency**: lower items don't matter until the blocker above them
 `OnGameLoaded()` never fires (it depends on the CharacterCreate loading-burst detector,
 `core.cpp:1346-1362`), so every `S2C_EntitySpawn (0x31)` is dropped and the deferred
 queue never drains.
-- ⚠️ `DeferredSpawnQueue` now buffers spawns (done upstream 06-04).
-- ❌ **OnGameLoaded deadlock** — fix `GameWorldSingleton` resolution; port the **90s
-  hard-timeout fallback** (exists in upstream `rebuild/`, never ported to `main`);
-  harden the global-pointer fallback (`core.cpp:1381`) so it can fire when patterns fail.
-- 🔭 Final verification needs a live Kenshi install.
+- ✅ `DeferredSpawnQueue` now buffers spawns (done upstream 06-04).
+- ✅ **90s hard-timeout fallback** — already ported to `main` (`core.cpp:1403`),
+  alongside 60/120s CharacterIterator fallbacks (`core.cpp:1382-1397`). The gate now
+  force-opens even if `GameWorldSingleton` never resolves.
+- ❌ **The real remaining gap:** forcing `OnGameLoaded` opens the gate, but if
+  `GameWorldSingleton` is still unresolved, drained spawns have no `GameWorld` to attach
+  to (`spawn_manager.cpp:539`). So robust **`GameWorldSingleton` resolution** is what's
+  left — and it's **binary-dependent** (pattern scan against the user's specific build).
+  Candidate fix: capture the frame-update `this` pointer as a runtime GameWorld source
+  (`Hook_GameFrameUpdate` rcx, `game_tick_hooks.cpp:39`) — but that hook isn't even
+  installed today, and whether `rcx` *is* GameWorld needs on-machine verification.
+- 🔭 **Needs a live Kenshi install** — not inspection-verifiable. Deferred until we have
+  a Windows + Kenshi test box; logging probes required to confirm `rcx` semantics.
 
-## 2. ❌ Combat — only death/KO syncs
-`C2S_AttackIntent` is **never sent**, so no real combat sync. `ApplyDamage (0x7A33A0)`
-**cannot** be hooked directly (`mov rax,rsp` prologue + hundreds of rapid calls →
-deterministic crash; `combat_hooks.cpp:270`). Plan: send attack **intent** from clients,
-resolve damage **server-authoritatively**, broadcast results — never hook ApplyDamage.
+## 2. ⚠️ Combat — continuous damage sync added (PvP); NPC HP next
+`ApplyDamage (0x7A33A0)` **cannot** be hooked (`mov rax,rsp` prologue + hundreds of
+rapid calls → deterministic crash; `combat_hooks.cpp`). The whole `LimbHealth` pipeline
+already existed end-to-end (client read → `C2S_LimbHealth` → server broadcast →
+`S2C_LimbHealth` → remote client writes HP back), but health was only ever sent
+*piggybacked after a KO/death event* — so mid-fight HP never moved on remote screens
+("damage bars broken").
+- ✅ **Continuous health sync** — `combat_hooks::PollOwnedHealth()` (new) samples the 7
+  limb values of each **locally-owned** character at 4 Hz and sends `C2S_LimbHealth` on
+  change (>0.5 HP). Routes around ApplyDamage entirely; also covers bleeding, healing,
+  and starvation, not just hits. Wired into both `OnGameTick` paths (`core.cpp`).
+  Conflict-free: each character has exactly one authoritative reporter (its owner), and
+  it never echoes incoming `S2C_LimbHealth` (which only writes *remote* characters).
+  🔭 Needs the live game to confirm HP visibly tracks across clients.
+- ❌ **NPC / enemy HP** — not yet synced (only player-owned chars are polled). Correct
+  fix: the **host** additionally polls server-owned (`ownerPlayerId == 0`) entities, with
+  **interest management** (only NPCs near a player) to avoid broadcasting HP for every
+  world NPC. Single authoritative reporter (host) = no conflict. Deferred: needs the
+  live game to verify server-owned NPCs are registered with linked game objects on the
+  host, and to tune the relevancy radius.
+- 💭 Optional later: client→host **attack intent** for server-authoritative hit
+  resolution (true determinism). The poll above makes this lower priority — visible
+  damage now replicates without it.
 
 ## 3. ❌ Inventory / items — incomplete
 Container contents, equip, trade, loot, money. Needs stable item identity/dedup across
