@@ -25,6 +25,14 @@ without any prior context. Keep this file updated at the end of each work sessio
    (`zone_interest`, `ownership`, `sync_facilitator`, `building_hooks`, `save_hooks`,
    `kmp/compression`) + their call-sites/includes/CMake entries. Dangling-ref sweep
    clean. Live-path merges deferred (ROADMAP §6).
+5. **`2516384`** — Docs pass: STATUS.md handoff log, README/ROADMAP refresh.
+6. **(P2P)** — **Embedded listen server:** `KenshiMP.ServerLib` split out of the
+   dedicated exe (also fixing `authority_validator.cpp` missing from the exe build —
+   latent link error); new `Core/net/embedded_server.{h,cpp}` runs `GameServer` on a
+   background thread inside the game; HOST GAME button + `/host`, `/stophost`,
+   `/hoststatus` commands; `Core::Shutdown` joins the server thread; dtor detaches
+   (loader-lock safety). Hosting no longer needs `KenshiMP.Server.exe` deployed.
+   Details: ROADMAP §0b.
 
 ## Key decisions (do not re-litigate without cause)
 

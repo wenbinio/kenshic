@@ -7,6 +7,27 @@ Ordered by **dependency**: lower items don't matter until the blocker above them
 ## Legend
 ✅ works · ⚠️ partial/fragile · ❌ broken/missing · 🔭 needs live game to verify
 
+## 0b. ✅ P2P hosting — embedded listen server (new)
+Hosting previously spawned an external `KenshiMP.Server.exe` via `CreateProcessA`
+(fragile: exe had to be deployed next to the DLL, separate console/lifecycle, silent
+failure if missing). Now the authoritative `GameServer` runs **inside the game process**:
+- `KenshiMP.ServerLib` (new static lib) — server logic extracted from the exe; the
+  dedicated `KenshiMP.Server` exe is now a thin console front-end over it. Also fixes a
+  latent link break: `authority_validator.cpp` was used by `server.cpp` but missing
+  from the exe's source list.
+- `Core/net/embedded_server.{h,cpp}` (new) — runs `GameServer` on a background thread
+  (config from `server.json`, tick loop mirroring the dedicated `main()`); all
+  GameServer calls stay on that one thread (UPnP/COM discovery off the render thread).
+  Loader-lock-safe teardown (dtor detaches; clean join happens in `Core::Shutdown`).
+- **HOST GAME button** rewired to `EmbeddedServer::StartAsync()` + loopback
+  auto-connect (fires after game load, existing Overlay flow). New commands: `/host
+  [port]`, `/stophost`, `/hoststatus`.
+- Server already promoted loopback peers to host (`ConnectedPlayer.isLoopback`) and
+  maps UPnP with firewall-rule fallback in `GameServer::Start` — both now actually
+  exercised in-process.
+- 🔭 Needs live verification: host click → load game → auto-connect → second player
+  joins via host's external IP.
+
 ## 0. Foundation (salvageable, per upstream audit)
 - ✅ ENet transport, protocol, packet streaming (4,900+ pkts reliable)
 - ✅ Entity registry, interpolation, MovRaxRsp hook infra, MyGUI UI

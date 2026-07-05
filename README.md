@@ -26,10 +26,19 @@ copying it would force this whole codebase to GPLv3. We use it only as an extern
 
 ## Architecture (inherited from KenshiMP)
 
-Server-authoritative: one dedicated server owns truth (entities, time, factions); the
+Server-authoritative: one server owns truth (entities, time, factions); the
 `Core.dll` injects into `kenshi_x64.exe` via the Ogre plugin loader, hooks the sim, and
-exchanges state over **ENet** (reliable UDP). See `KENSHI_COOP_SPEC.md` §5 for why this
-is the only tractable model, and `mp/docs/` for the inherited protocol/offset docs.
+exchanges state over **ENet** (reliable UDP). The server runs in either topology:
+
+- **P2P / listen server** (default UX): the host player's game runs the authoritative
+  `GameServer` **in-process** on a background thread (`EmbeddedServer`); other players
+  connect directly to the host. UPnP port-mapping + a firewall-rule fallback are
+  attempted automatically. Host via the in-game **HOST GAME** button or `/host [port]`.
+- **Dedicated server**: the same server logic (`KenshiMP.ServerLib`) as a standalone
+  console exe for always-on worlds.
+
+See `KENSHI_COOP_SPEC.md` §5 for why server-authority is the only tractable model, and
+`mp/docs/` for the inherited protocol/offset docs.
 
 ## Building & testing
 

@@ -1,6 +1,7 @@
 #include "native_menu.h"
 #include "mygui_bridge.h"
 #include "../core.h"
+#include "../net/embedded_server.h"
 #include "../hooks/entity_hooks.h"
 #include "kmp/constants.h"
 #include "kmp/protocol.h"
@@ -437,59 +438,30 @@ void NativeMenu::SetStatus(const std::string& text) {
 void NativeMenu::OnHostClicked() {
     spdlog::info("NativeMenu: HOST GAME clicked");
 
-    // Launch KenshiMP.Server.exe
-    static const char s_anchor = 0;
-    char dllPath[MAX_PATH] = {};
-    HMODULE hSelf = nullptr;
-    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                       GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       &s_anchor,
-                       &hSelf);
-    GetModuleFileNameA(hSelf, dllPath, MAX_PATH);
-
-    std::string dllDir(dllPath);
-    size_t lastSlash = dllDir.find_last_of("\\/");
-    if (lastSlash != std::string::npos) dllDir = dllDir.substr(0, lastSlash);
-
-    std::string serverPaths[] = {
-        dllDir + "\\KenshiMP.Server.exe",
-        dllDir + "\\KenshiMP\\build\\bin\\Release\\KenshiMP.Server.exe",
-    };
-
-    std::string serverExe;
-    for (auto& path : serverPaths) {
-        DWORD attrs = GetFileAttributesA(path.c_str());
-        if (attrs != INVALID_FILE_ATTRIBUTES) {
-            serverExe = path;
-            break;
-        }
+    // P2P listen server: run the authoritative GameServer inside THIS game
+    // process on a background thread — no external KenshiMP.Server.exe.
+    // Auto-connect fires only after the game loads (Overlay polls gameLoaded),
+    // by which point the server thread has long since bound its port; the
+    // blocking UPnP/COM discovery happens off the render thread in that window.
+    auto& embedded = EmbeddedServer::Get();
+    if (embedded.IsActive()) {
+        SetStatus("Already hosting (" + embedded.Describe() + ").");
+        return;
     }
 
-    if (!serverExe.empty()) {
-        STARTUPINFOA si = {};
-        si.cb = sizeof(si);
-        PROCESS_INFORMATION pi = {};
+    if (embedded.StartAsync()) {
+        auto& overlay = Core::Get().GetOverlay();
+        overlay.SetHostingServer(true);
+        overlay.SetAutoConnect("127.0.0.1", KMP_DEFAULT_PORT);
 
-        if (CreateProcessA(serverExe.c_str(), nullptr, nullptr, nullptr,
-                           FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &pi)) {
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
+        spdlog::info("NativeMenu: Embedded server launching — auto-connect on game load");
 
-            auto& overlay = Core::Get().GetOverlay();
-            overlay.SetHostingServer(true);
-            overlay.SetAutoConnect("127.0.0.1", KMP_DEFAULT_PORT);
-
-            spdlog::info("NativeMenu: Launched server: {}", serverExe);
-
-            // HIDE the panel so user can click Kenshi's New Game button
-            Hide();
-        } else {
-            SetStatus("Failed to launch server.");
-            spdlog::error("NativeMenu: CreateProcess failed: {}", GetLastError());
-        }
+        // HIDE the panel so user can click Kenshi's New Game button
+        Hide();
     } else {
-        SetStatus("Server exe not found.");
-        spdlog::error("NativeMenu: Server exe not found in any expected path");
+        SetStatus("Failed to start hosting (" + embedded.Describe() + ").");
+        spdlog::error("NativeMenu: EmbeddedServer::StartAsync refused: {}",
+                      embedded.Describe());
     }
 }
 

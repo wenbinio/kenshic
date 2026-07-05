@@ -41,8 +41,8 @@ add_subdirectory(lib/json EXCLUDE_FROM_ALL)
 # ── Our projects ──
 add_subdirectory(KenshiMP.Common)
 add_subdirectory(KenshiMP.Scanner)
+add_subdirectory(KenshiMP.Server)   # defines KenshiMP.ServerLib, linked by Core
 add_subdirectory(KenshiMP.Core)
-add_subdirectory(KenshiMP.Server)
 add_subdirectory(KenshiMP.MasterServer)
 add_subdirectory(KenshiMP.Injector)
 add_subdirectory(KenshiMP.TestClient)

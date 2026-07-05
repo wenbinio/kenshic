@@ -21,6 +21,7 @@
 #include "game/asset_facilitator.h"
 #include "game/shared_save_sync.h"
 #include "game/game_inventory.h"
+#include "net/embedded_server.h"
 #include "kmp/protocol.h"
 #include "kmp/messages.h"
 #include "kmp/constants.h"
@@ -662,6 +663,11 @@ void Core::Shutdown() {
     }
 
     m_client.Disconnect();
+
+    // If we're the P2P host, stop the in-process server AFTER our client has
+    // disconnected (so the server processes our clean disconnect, then saves
+    // the world and releases the port/UPnP mapping). Joins the server thread.
+    EmbeddedServer::Get().Stop();
 
     // Uninstall inline hooks before HookManager (which only handles MinHook hooks)
     squad_spawn_hooks::Uninstall();

@@ -10,6 +10,7 @@
 #include "../hooks/ai_hooks.h"
 #include "../hooks/char_tracker_hooks.h"
 #include "../game/shared_save_sync.h"
+#include "../net/embedded_server.h"
 #include "kmp/protocol.h"
 #include "kmp/messages.h"
 #include "kmp/constants.h"
@@ -287,6 +288,51 @@ void CommandRegistry::RegisterBuiltins() {
         if (cleaned > 0)
             msg += " Cleaned up " + std::to_string(cleaned) + " remote entities.";
         return msg;
+    });
+
+    // /host [port] — Start hosting P2P: run the server inside this game process
+    Register("host", "Host a P2P game in-process (/host [port])", [](const CommandArgs& args) -> std::string {
+        auto& embedded = EmbeddedServer::Get();
+        if (embedded.IsActive()) return "Already hosting (" + embedded.Describe() + ").";
+
+        uint16_t port = 0;
+        if (!args.args.empty()) {
+            try {
+                unsigned long p = std::stoul(args.args[0]);
+                if (p == 0 || p > 65535) return "Invalid port (1-65535).";
+                port = static_cast<uint16_t>(p);
+            } catch (...) {
+                return "Usage: /host [port]";
+            }
+        }
+
+        if (!embedded.StartAsync(port)) {
+            return "Failed to start hosting (" + embedded.Describe() + ").";
+        }
+
+        auto& core = Core::Get();
+        core.GetOverlay().SetHostingServer(true);
+        if (!core.IsConnected()) {
+            core.GetOverlay().SetAutoConnect("127.0.0.1",
+                                             port ? port : KMP_DEFAULT_PORT);
+            return "Hosting started — will connect once the game is loaded. "
+                   "Others join via your IP (UPnP mapping attempted).";
+        }
+        return "Hosting started on this machine.";
+    });
+
+    // /stophost — Stop the in-process P2P server
+    Register("stophost", "Stop hosting (saves world, closes port)", [](const CommandArgs&) -> std::string {
+        auto& embedded = EmbeddedServer::Get();
+        if (!embedded.IsActive()) return "Not hosting (" + embedded.Describe() + ").";
+        embedded.Stop();
+        Core::Get().GetOverlay().SetHostingServer(false);
+        return "Hosting stopped. World saved.";
+    });
+
+    // /hoststatus — Show embedded server state
+    Register("hoststatus", "Show P2P host state", [](const CommandArgs&) -> std::string {
+        return "Embedded server: " + EmbeddedServer::Get().Describe();
     });
 
     // /time [value] — Show or set time of day (0.0=midnight, 0.5=noon)

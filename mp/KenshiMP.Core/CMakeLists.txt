@@ -39,6 +39,7 @@ add_library(KenshiMP.Core SHARED
     net/client.cpp
     net/packet_handler.cpp
     net/server_query.cpp
+    net/embedded_server.cpp
     # Sync
     sync/entity_registry.cpp
     sync/interpolation.cpp
@@ -65,6 +66,7 @@ target_include_directories(KenshiMP.Core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(KenshiMP.Core PRIVATE
     KenshiMP.Common
     KenshiMP.Scanner
+    KenshiMP.ServerLib   # embedded P2P host (net/embedded_server.cpp wraps GameServer)
     enet
     spdlog::spdlog
     nlohmann_json::nlohmann_json
