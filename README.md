@@ -4,8 +4,11 @@ A cooperative-multiplayer mod for **Kenshi** (Lo-Fi Games), built by forking and
 fixing the existing community multiplayer work. This repo is a working monorepo: the
 active C++ mod, the supporting save/data tooling, and the design spec.
 
-> Status: **early** — importing upstream bases and working through the known "broken
-> list." See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's working, broken, and next.
+> Status: **active development** — upstream bases imported; first fixes landed
+> (continuous combat health sync; ~1,050 LOC of dead code removed). No build has been
+> run yet — all changes are inspection-verified only and need a Windows + Kenshi
+> machine to compile and test. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the broken
+> list and [`docs/STATUS.md`](docs/STATUS.md) for session-by-session progress.
 
 ## Layout
 

@@ -108,7 +108,14 @@ test against.
 
 ## Dev/test loop
 The mod injects into the live 64-bit game; it can't be built or run in Linux CI.
-Inspectable/fixable here without the game: the server compile break (§0), the
-OnGameLoaded fallback + resolution hardening (§1), wiring `C2S_AttackIntent` (§2), and
-the orchestrator consolidation (§6). Anything marked 🔭 needs a Windows + Kenshi machine
-to confirm. Build: `mp/docs/BUILD.md`.
+**Nothing in this repo has been compiled yet** — all changes so far are
+inspection-verified only. First action on a Windows + Kenshi machine: build per
+`mp/docs/BUILD.md` (VS2022 + CMake), fix any compile fallout, then verify the 🔭 items
+in order: (1) remote characters spawn at all (§1 gate), (2) limb damage visibly tracks
+across clients (§2 poll).
+
+Remaining inspection-safe work (no game needed): dead protocol enums
+(`S2C_ZoneData` 0x12, `C2S_EntityAck` 0x15), the dead server `combat_resolver` /
+`HandleAttackIntent` path, `WorldAccessor` vs `GameWorldAccessor` dedup, and
+`movement_hooks` never-installed bodies — all listed in §6 deferred (the enum/dead-path
+ones are safe now; the rest borderline).
